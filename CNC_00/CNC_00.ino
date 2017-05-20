@@ -3,16 +3,9 @@
 
 int pinButton = 2;
 
-int pinStepA = 5;
-int pinStepB = 6;
-int pinStepC = 10;
-int pinStepD = 11;
 int stepsPerRev = 20;
-Stepper stepper(stepsPerRev, pinStepA, pinStepB, pinStepC, pinStepD);
-int commonDelay = 10;
-
-int pinSelX = 12;
-int pinSelY = 13;
+Stepper stepperY(stepsPerRev, 5, 6, 4, 7);
+Stepper stepperX(stepsPerRev, 8, 9, 10, 11);
 
 int pinServo = 3;
 int pinServoKnob = A0;
@@ -30,30 +23,23 @@ int targetY = 0;
 int autoServoAngle = servoHigh;
 int servoAngle = servoHigh;
 boolean manual = true;
-int pinManualOverride = 4;
+int modeStatusLED = 12;
+int pinManualOverride = 17; // A3 as a digital pin
 
-int pinZeroX = 7;
-int pinZeroY = 8;
+int pinZeroX = 15; // A1 as a digital pin
+int pinZeroY = 16; // A2 as a digital pin
 
 void resetOrigin() {
   Serial.println("Resetting origin...");
   Serial.println("Doing Y axis...");
-  digitalWrite(pinSelX, 0);
-  digitalWrite(pinSelY, 1);
-  delay(commonDelay);
   while(!digitalRead(pinZeroY)) {
-    stepper.step(-1);
-    delay(commonDelay);
+    stepperY.step(-1);
   }
   currentY = 0;
   Serial.println("Y axis done");
   Serial.println("Doing X axis...");
-  digitalWrite(pinSelX, 1);
-  digitalWrite(pinSelY, 0);
-  delay(commonDelay);
   while(!digitalRead(pinZeroX)) {
-    stepper.step(-1);
-    delay(commonDelay);
+    stepperX.step(-1);
   }
   currentX = 0;
   Serial.println("X axis done");
@@ -61,20 +47,18 @@ void resetOrigin() {
 }
 
 void setup() {
+  pinMode(modeStatusLED, OUTPUT);
   pinMode(pinZeroX, INPUT);
   pinMode(pinZeroY, INPUT);
   pinMode(pinButton, INPUT);
   pinMode(pinManualOverride, INPUT);
-  pinMode(pinSelX, OUTPUT);
-  pinMode(pinSelY, OUTPUT);
-  digitalWrite(pinSelX, 0);
-  digitalWrite(pinSelY, 0);
   servo.attach(pinServo);
   servo.write(servoHigh);
-  stepper.setSpeed(100);
+  stepperX.setSpeed(100);
+  stepperY.setSpeed(100);
   Serial.begin(115200);
   Serial.println("\n");
-  resetOrigin();
+  //resetOrigin();
 }
 
 void loop() {
@@ -88,7 +72,9 @@ void loop() {
   if(Serial.available() > 0) {
     cmd = Serial.read();
   }
-  manual = digitalRead(pinManualOverride) ? manual : 1;
+  boolean manualOverride = digitalRead(pinManualOverride);
+  manual = manualOverride ? manual : 1;
+  digitalWrite(modeStatusLED, manual);
   
   switch(cmd) {
     case 'M': // manual
@@ -123,15 +109,11 @@ void loop() {
 
   int valJoystickX = analogRead(pinJoystickX);
   int valJoystickY = analogRead(pinJoystickY);
-  float propA = (float)(valJoystickX + 1) / (float)(valJoystickY + 1); // +1 to prevent from div0 error
-  float propB = (float)(valJoystickX + 1) / (float)(1024 - valJoystickY);
   int dirX = 0;
   int dirY = 0;
   if(manual) {
-    if(!(0.9 < propA && propA < 1.1 && 0.9 < propB && propB < 1.1)) {
-      dirX = propA > 1 && propB > 1 ? -1 : (propA < 1 && propB < 1 ? 1 : 0);
-      dirY = propA > 1 && propB < 1 ? -1 : (propA < 1 && propB > 1 ? 1 : 0);
-    }
+    dirX = valJoystickX < 447 ? 1 : (valJoystickX > 575 ? -1 : 0);
+    dirY = valJoystickY < 447 ? -1 : (valJoystickY > 575 ? 1 : 0);
   } else {
     dirX = autoDirX;
     dirY = autoDirY;
@@ -140,21 +122,12 @@ void loop() {
   servo.write(manual ? servoAngle : autoServoAngle);
 
   if(dirY) {
-    digitalWrite(pinSelX, 0);
-    digitalWrite(pinSelY, 1);
-    delay(commonDelay);
     currentY += dirY;
-    stepper.step(dirY);
-    delay(commonDelay); 
-  } else if(dirX) {
-    digitalWrite(pinSelX, 1);
-    digitalWrite(pinSelY, 0);
-    delay(commonDelay);
+    stepperY.step(dirY);
+  }
+  if(dirX) {
     currentX += dirX;
-    stepper.step(dirX);
-    delay(commonDelay); 
-  } else {
-    delay(2 * commonDelay);
+    stepperX.step(dirX);
   }
   
   Serial.print("{zX=");
@@ -180,5 +153,7 @@ void loop() {
   Serial.print(" cmd='");
   Serial.print(cmd);
   Serial.println("'");
+  
+  delay(10);
   
 }

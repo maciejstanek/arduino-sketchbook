@@ -11,8 +11,11 @@ Stepper stepperX(stepsPerRev, 8, 9, 10, 11);
 // Servo for raising/lowering tool
 int pinServo = 3;
 int pinServoKnob = A0;
+//int servoHigh = 110;
+//int servoLow = 150;
 int servoHigh = 110;
-int servoLow = 150;
+int servoLow = 100;
+int servoTune = 10;
 Servo servo;
 
 // Status data
@@ -92,7 +95,7 @@ void setup() {
 void loop() {
 	status = 0;
   
-  int knobTuning = map(analogRead(pinServoKnob), 0, 1023, -20, 20);
+  int knobTuning = map(analogRead(pinServoKnob), 0, 1023, -servoTune, servoTune);
   servoAngle = digitalRead(pinButton) ? servoHigh : servoLow + knobTuning;
 
   cmd = '-';

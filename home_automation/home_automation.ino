@@ -5,24 +5,23 @@
 #include <Ethernet.h>
 // Headers }}}
 // Settings {{{
-// Relays {{{
+// Relays
 byte relay_count = 3;
 byte relay[3];
 byte relay_pins[3] = {7, 8, 9};
+// TODO: Save relays status on EEPROM
 void applyRelaySettings() {
 	for(byte i = 0; i < relay_count; i++) {
 		digitalWrite(relay_pins[i], relay[i]);
 	}
 }
-// Relays }}}
-// Ethernet {{{
+// Ethernet
 byte thisMAC[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
 IPAddress serverIP(192, 168, 1, 170);
 IPAddress thisIP(192,168,1,171);
 EthernetClient client;
 EthernetServer localServer(80);
-// Ethernet }}}
-// PIR {{{
+// PIR
 byte pin_pir = 2;
 boolean pir_state_at_interrupt;
 boolean pir_interrupt_flag;
@@ -30,7 +29,7 @@ void pir_interrupt_coroutine() {
 	pir_state_at_interrupt = digitalRead(pin_pir);
 	pir_interrupt_flag = true;
 }
-// PIR }}}
+// BMP180
 Adafruit_BMP085 bmp;
 // Settings }}}
 // Initialization {{{

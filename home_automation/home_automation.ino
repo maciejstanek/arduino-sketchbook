@@ -7,8 +7,8 @@
 // Settings {{{
 // Relays {{{
 byte relay_count = 3;
-bool relay[3];
-byte relay_pins[3] = {11, 12, 13};
+byte relay[3];
+byte relay_pins[3] = {7, 8, 9};
 void applyRelaySettings() {
 	for(byte i = 0; i < relay_count; i++) {
 		digitalWrite(relay_pins[i], relay[i]);
@@ -52,9 +52,13 @@ void setup() {
 		for(;;);
 	}
 	// Relays
-	relay[0] = false;
-	relay[1] = false;
-	relay[2] = false;
+	for(byte i = 0; i < relay_count; i++) {
+		pinMode(relay_pins[i], OUTPUT);
+	}
+	relay[0] = LOW;
+	relay[1] = LOW;
+	relay[2] = LOW;
+	applyRelaySettings();
 }
 // Initialization }}}
 // Main loop {{{
@@ -113,42 +117,48 @@ void loop() {
 		if(line.length() > 2 && line[0] == 'Q' && line[1] == '=') {
 			client.println();
 			switch(line[2]) {
+				// 'G' request {{{
 				case 'G':
-					// Send a standard HTTP response header
-					client.println("HTTP/1.1 200 OK");
-					client.println("Content-Type: application/json");
-					client.println("Connection: close");
-					client.println();
-					// Read sensors
-					int32_t pressure;
-					pressure = bmp.readPressure();
-					Serial.print("--DBG-- Pressure: ");
-					Serial.println(pressure);
-					float temperature;
-					temperature = bmp.readTemperature();
-					Serial.print("--DBG-- Temperature: ");
-					Serial.println(temperature);
-					// Print sensors and relays values
-					client.print("{\"t\":\"");
-					client.print(temperature);
-					client.print("\",\"p\":\"");
-					client.print(pressure);
-					client.print("\",\"pir\":\"");
-					client.print(pir_state_at_interrupt);
-					client.print("\",\"r\":[");
-					for(byte i = 0; i < relay_count; i++) {
-						if(i) {
-							client.print(",");	
+					if(line.length() == 3) {
+						// Send a standard HTTP response header
+						client.println("HTTP/1.1 200 OK");
+						client.println("Content-Type: application/json");
+						client.println("Connection: close");
+						client.println();
+						// Read sensors
+						int32_t pressure;
+						pressure = bmp.readPressure();
+						Serial.print("--DBG-- Pressure: ");
+						Serial.println(pressure);
+						float temperature;
+						temperature = bmp.readTemperature();
+						Serial.print("--DBG-- Temperature: ");
+						Serial.println(temperature);
+						// Print sensors and relays values
+						client.print("{\"t\":\"");
+						client.print(temperature);
+						client.print("\",\"p\":\"");
+						client.print(pressure);
+						client.print("\",\"pir\":\"");
+						client.print(pir_state_at_interrupt);
+						client.print("\",\"r\":[");
+						for(byte i = 0; i < relay_count; i++) {
+							if(i) {
+								client.print(",");	
+							}
+							client.print("\"");
+							client.print(relay[i]);
+							client.print("\"");
 						}
-						client.print("\"");
-						client.print(relay[i]);
-						client.print("\"");
+						client.print("]}");
+						badRequest = false;
 					}
-					client.print("]}");
-					badRequest = false;
 					break;
+				// 'G' request }}}
+				// 'R[1-3][UDT]' request {{{
 				case 'R':
 					if (line.length() == 5 && line[3] >= '1' && line[3] < '1' + relay_count) {
+						// Parse the command
 						byte relay_index = line[3] - '1';	
 						Serial.print("--DBG-- Relay #");
 						Serial.println(relay_index + 1);
@@ -156,12 +166,12 @@ void loop() {
 							case 'U':
 								Serial.println("--DBG-- Turning on relay");
 								badRequest = false;
-								relay[relay_index] = true;
+								relay[relay_index] = HIGH;
 								break;
 							case 'D':
 								Serial.println("--DBG-- Turning off relay");
 								badRequest = false;
-								relay[relay_index] = false;
+								relay[relay_index] = LOW;
 								break;
 							case 'T':
 								Serial.println("--DBG-- Toggle relay");
@@ -171,6 +181,7 @@ void loop() {
 						} 
 						applyRelaySettings();
 						if(!badRequest) {
+							// Response
 							Serial.print("--DBG-- Resulting relay status is ");
 							Serial.println(relay[relay_index]);
 							client.println("HTTP/1.1 200 OK");
@@ -181,6 +192,7 @@ void loop() {
 						}
 					}
 					break;
+				// 'R[1-3][UDT]' request }}}
 			}
 		}
 		if(badRequest) {

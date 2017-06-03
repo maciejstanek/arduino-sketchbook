@@ -9,10 +9,11 @@ int status_pressure;
 boolean status_relay[3];
 // Information sent by the request }}}
 // Ethernet {{{
-byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
-IPAddress server(192, 168, 1, 170);
-IPAddress ip(192,168,1,171);
+byte thisMAC[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
+IPAddress serverIP(192, 168, 1, 170);
+IPAddress thisIP(192,168,1,171);
 EthernetClient client;
+EthernetServer localServer(80);
 // Ethernet }}}
 // PIR {{{
 byte pin_pir = 2;
@@ -27,14 +28,16 @@ void pir_interrupt_coroutine() {
 // Initialization {{{
 void setup() {
 	Serial.begin(9600);
- 	// PIR 
+	// PIR
 	pir_interrupt_flag = false;
 	pinMode(pin_pir, INPUT);
 	attachInterrupt(digitalPinToInterrupt(2), pir_interrupt_coroutine, CHANGE);
- 	// Ethernet 
-	Ethernet.begin(mac, ip);
+	// Ethernet
+	Ethernet.begin(thisMAC, thisIP);
+	localServer.begin();
 	delay(1000);
-	Serial.println("--DBG-- Configured ethernet");
+	Serial.print("--DBG-- Configured ethernet at ");
+	Serial.println(Ethernet.localIP());
 }
 // Initialization }}}
 // Main loop {{{
@@ -45,7 +48,7 @@ void loop() {
 		Serial.println(pir_state_at_interrupt);
 		pir_interrupt_flag = false;
 
-		if(client.connect(server, 80)) { // port 80 is default for HTTP
+		if(client.connect(serverIP, 80)) { // port 80 is default for HTTP
 			Serial.println("--DBG-- Sending PIR status succeeded!");
 			client.println("POST /mstanek/home_automation_server/php/arduino.php HTTP/1.1");
 			client.println("Host: 192.168.1.170");
@@ -72,5 +75,42 @@ void loop() {
 		}
 	}
 	// Handle PIR interrupt }}}
+	// Process server requests {{{
+	if(client = localServer.available()) {
+		Serial.println("--DBG-- New incoming connection");
+		// An HTTP request ends with a blank line
+		boolean currentLineIsBlank = true;
+		while (client.connected()) {
+			if (client.available()) {
+				char c = client.read();
+				Serial.write(c);
+				// If you've gotten to the end of the line (received a newline
+				// character) and the line is blank, the http request has ended,
+				// so you can send a reply
+				if (c == '\n' && currentLineIsBlank) {
+					// Send a standard HTTP response header
+					client.println("HTTP/1.1 200 OK");
+					client.println("Content-Type: application/json");
+					client.println("Connection: close");
+					client.println();
+					// TODO: Print sensors values
+					client.println("{\"a\":1}");
+					break;
+				}
+				if (c == '\n') {
+					// You're starting a new line
+					currentLineIsBlank = true;
+				} else if (c != '\r') {
+					// You've gotten a character on the current line
+					currentLineIsBlank = false;
+				}
+			}
+		}
+		delay(10);
+		client.stop();
+		Serial.println();
+		Serial.println("--DBG-- Incoming connection stopped");
+	}
+	// Process server requests }}}
 }
 // Main loop }}}

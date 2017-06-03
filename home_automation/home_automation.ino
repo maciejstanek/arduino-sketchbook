@@ -1,13 +1,20 @@
 // Headers {{{
+#include <Wire.h>
+#include <Adafruit_BMP085.h>
 #include <SPI.h>
 #include <Ethernet.h>
 // Headers }}}
 // Settings {{{
-// Information sent by the request {{{
-int status_temperature;
-int status_pressure;
-boolean status_relay[3];
-// Information sent by the request }}}
+// Relays {{{
+byte relay_count = 3;
+bool relay[3];
+byte relay_pins[3] = {11, 12, 13};
+void applyRelaySettings() {
+	for(byte i = 0; i < relay_count; i++) {
+		digitalWrite(relay_pins[i], relay[i]);
+	}
+}
+// Relays }}}
 // Ethernet {{{
 byte thisMAC[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
 IPAddress serverIP(192, 168, 1, 170);
@@ -24,6 +31,7 @@ void pir_interrupt_coroutine() {
 	pir_interrupt_flag = true;
 }
 // PIR }}}
+Adafruit_BMP085 bmp;
 // Settings }}}
 // Initialization {{{
 void setup() {
@@ -38,6 +46,15 @@ void setup() {
 	delay(1000);
 	Serial.print("--DBG-- Configured ethernet at ");
 	Serial.println(Ethernet.localIP());
+	// BMP180
+	if(!bmp.begin()) {
+		Serial.print("--DBG-- Error while initializing BMP180, halting... ");
+		for(;;);
+	}
+	// Relays
+	relay[0] = false;
+	relay[1] = false;
+	relay[2] = false;
 }
 // Initialization }}}
 // Main loop {{{
@@ -91,13 +108,88 @@ void loop() {
 		Serial.print("--DBG-- Got the following request: '");
 		Serial.print(line);
 		Serial.println("'");
-		// Send a standard HTTP response header
-		client.println("HTTP/1.1 200 OK");
-		client.println("Content-Type: application/json");
-		client.println("Connection: close");
-		client.println();
-		// TODO: Print sensors values
-		client.println("{\"a\":1}");
+		// Parese command and Drive the relays accordingly
+		bool badRequest = true;
+		if(line.length() > 2 && line[0] == 'Q' && line[1] == '=') {
+			client.println();
+			switch(line[2]) {
+				case 'G':
+					// Send a standard HTTP response header
+					client.println("HTTP/1.1 200 OK");
+					client.println("Content-Type: application/json");
+					client.println("Connection: close");
+					client.println();
+					// Read sensors
+					int32_t pressure;
+					pressure = bmp.readPressure();
+					Serial.print("--DBG-- Pressure: ");
+					Serial.println(pressure);
+					float temperature;
+					temperature = bmp.readTemperature();
+					Serial.print("--DBG-- Temperature: ");
+					Serial.println(temperature);
+					// Print sensors and relays values
+					client.print("{\"t\":\"");
+					client.print(temperature);
+					client.print("\",\"p\":\"");
+					client.print(pressure);
+					client.print("\",\"pir\":\"");
+					client.print(pir_state_at_interrupt);
+					client.print("\",\"r\":[");
+					for(byte i = 0; i < relay_count; i++) {
+						if(i) {
+							client.print(",");	
+						}
+						client.print("\"");
+						client.print(relay[i]);
+						client.print("\"");
+					}
+					client.print("]}");
+					badRequest = false;
+					break;
+				case 'R':
+					if (line.length() == 5 && line[3] >= '1' && line[3] < '1' + relay_count) {
+						byte relay_index = line[3] - '1';	
+						Serial.print("--DBG-- Relay #");
+						Serial.println(relay_index + 1);
+						switch(line[4]) {
+							case 'U':
+								Serial.println("--DBG-- Turning on relay");
+								badRequest = false;
+								relay[relay_index] = true;
+								break;
+							case 'D':
+								Serial.println("--DBG-- Turning off relay");
+								badRequest = false;
+								relay[relay_index] = false;
+								break;
+							case 'T':
+								Serial.println("--DBG-- Toggle relay");
+								badRequest = false;
+								relay[relay_index] ^= 1;
+								break;
+						} 
+						applyRelaySettings();
+						if(!badRequest) {
+							Serial.print("--DBG-- Resulting relay status is ");
+							Serial.println(relay[relay_index]);
+							client.println("HTTP/1.1 200 OK");
+							client.println("Content-Type: text/plain");
+							client.println("Connection: close");
+							client.println();
+							client.print(relay[relay_index]);
+						}
+					}
+					break;
+			}
+		}
+		if(badRequest) {
+			// Send a response for a bad query
+			Serial.println("--DBG-- This request was a bogus!");
+			client.println("HTTP/1.1 400 Bad Request");
+			client.println("Connection: close");
+			client.println();
+		}
 		// Close connection
 		delay(10);
 		client.stop();

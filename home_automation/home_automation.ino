@@ -77,38 +77,30 @@ void loop() {
 	// Handle PIR interrupt }}}
 	// Process server requests {{{
 	if(client = localServer.available()) {
-		Serial.println("--DBG-- New incoming connection");
-		// An HTTP request ends with a blank line
-		boolean currentLineIsBlank = true;
-		while (client.connected()) {
-			if (client.available()) {
+		Serial.println("--DBG-- New incoming connection with a following HTTP header:");
+		String line; // This variable will contain the last line - the POST request body
+		while(client.available()) {
 				char c = client.read();
+				line += c;
+				if(c == '\n') {
+					line = "";
+				}
 				Serial.write(c);
-				// If you've gotten to the end of the line (received a newline
-				// character) and the line is blank, the http request has ended,
-				// so you can send a reply
-				if (c == '\n' && currentLineIsBlank) {
-					// Send a standard HTTP response header
-					client.println("HTTP/1.1 200 OK");
-					client.println("Content-Type: application/json");
-					client.println("Connection: close");
-					client.println();
-					// TODO: Print sensors values
-					client.println("{\"a\":1}");
-					break;
-				}
-				if (c == '\n') {
-					// You're starting a new line
-					currentLineIsBlank = true;
-				} else if (c != '\r') {
-					// You've gotten a character on the current line
-					currentLineIsBlank = false;
-				}
-			}
 		}
+		Serial.println("");
+		Serial.print("--DBG-- Got the following request: '");
+		Serial.print(line);
+		Serial.println("'");
+		// Send a standard HTTP response header
+		client.println("HTTP/1.1 200 OK");
+		client.println("Content-Type: application/json");
+		client.println("Connection: close");
+		client.println();
+		// TODO: Print sensors values
+		client.println("{\"a\":1}");
+		// Close connection
 		delay(10);
 		client.stop();
-		Serial.println();
 		Serial.println("--DBG-- Incoming connection stopped");
 	}
 	// Process server requests }}}

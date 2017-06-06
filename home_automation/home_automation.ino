@@ -8,7 +8,7 @@
 // Relays
 byte relay_count = 3;
 byte relay[3];
-byte relay_pins[3] = {7, 8, 9};
+byte relay_pins[3] = {5, 6, 7};
 // TODO: Save relays status on EEPROM
 void applyRelaySettings() {
 	for(byte i = 0; i < relay_count; i++) {

@@ -9,26 +9,39 @@ byte analogInPin = A0;
 int sensorValue = 0;
 
 #define FILTER_SAMPLES 6
-int sensorSamples[FILTER_SAMPLES];
+int sensorSamplesQueue[FILTER_SAMPLES];
 int sensorAverage = 0;
 
-void setup() {
-  Serial.begin(9600);
+void setupExternalDisplay() {
   externalDisplay.begin(SSD1306_SWITCHCAPVCC, 0x3C);
   externalDisplay.clearDisplay();
   externalDisplay.display();
-  for(byte i = 0; i < FILTER_SAMPLES; i++) {
-    sensorSamples[i] = 0;
-  }
 }
 
 void readSensorValue() {
   delay(100); // Make sure the voltage level is more or less stable
   sensorValue = analogRead(analogInPin);
+}
+
+void insertSensorValueToSamplesQueue() {
   for(byte i = FILTER_SAMPLES - 1; i > 0; i--) {
-    sensorSamples[i] = sensorSamples[i - 1];
+    sensorSamplesQueue[i] = sensorSamplesQueue[i - 1];
   }
-  sensorSamples[0] = sensorValue;
+  sensorSamplesQueue[0] = sensorValue;
+}
+
+void fillSamplesQueueWithCurrentSensorValue() {
+  for(byte i = 0; i < FILTER_SAMPLES; i++) {
+    sensorSamplesQueue[i] = sensorValue;
+  }
+}
+
+void calculateAverageSensorValue() {
+  sensorAverage = 0;
+  for(byte i = 0; i < FILTER_SAMPLES; i++) {
+    sensorAverage += sensorSamplesQueue[i];
+  }
+  sensorAverage /= FILTER_SAMPLES;
 }
 
 void displayDebug() {
@@ -47,36 +60,43 @@ void displayExternalDisplayDebug() {
   externalDisplay.setTextColor(WHITE);
   externalDisplay.setCursor(0, 0);
   externalDisplay.print("Raw moisture from ADC");
-  externalDisplay.drawLine(0, 12, externalDisplay.width() - 1, 12, WHITE);
+  byte LineIntersectionPointX = 56;
+  byte LineIntersectionPointY = 12;
+  externalDisplay.drawLine(0, LineIntersectionPointY - 1, externalDisplay.width() - 1, LineIntersectionPointY - 1, WHITE);
+  externalDisplay.drawLine(0, LineIntersectionPointY + 1, LineIntersectionPointX - 1, LineIntersectionPointY + 1, WHITE);
+  externalDisplay.drawLine(LineIntersectionPointX + 1, LineIntersectionPointY + 1, externalDisplay.width() - 1, LineIntersectionPointY + 1, WHITE);
 
   externalDisplay.setCursor(0, 16);
   for(byte i = 0; i < FILTER_SAMPLES; i++) {
     externalDisplay.print("s[");
     externalDisplay.print(i);
     externalDisplay.print("]=");
-    externalDisplay.println(sensorSamples[i]);
+    externalDisplay.println(sensorSamplesQueue[i]);
   }
-  externalDisplay.drawLine(56, 12, 56, externalDisplay.height() - 1, WHITE);
+  externalDisplay.drawLine(LineIntersectionPointX - 1, LineIntersectionPointY + 1, LineIntersectionPointX - 1, externalDisplay.height() - 1, WHITE);
+  externalDisplay.drawLine(LineIntersectionPointX + 1, LineIntersectionPointY + 1, LineIntersectionPointX + 1, externalDisplay.height() - 1, WHITE);
 
-  externalDisplay.setCursor(64, 16);
-  externalDisplay.println("Average:");
-  externalDisplay.setCursor(64, 32);
+  externalDisplay.setCursor(72, 24);
+  externalDisplay.println("Average");
+  externalDisplay.setCursor(72, 40);
   externalDisplay.setTextSize(2);
   externalDisplay.println(sensorAverage);
   externalDisplay.display();
 }
 
-void calculateAverageSensorValue() {
-  sensorAverage = 0;
-  for(byte i = 0; i < FILTER_SAMPLES; i++) {
-    sensorAverage += sensorSamples[i];
-  }
-  sensorAverage /= FILTER_SAMPLES;
+void setup() {
+  Serial.begin(9600);
+  setupExternalDisplay();
+  readSensorValue();
+  fillSamplesQueueWithCurrentSensorValue();
+  calculateAverageSensorValue();
+  displayDebug();
 }
 
 void loop() {
+  delay(1000); // Main loop delay
   readSensorValue();
+  insertSensorValueToSamplesQueue();
   calculateAverageSensorValue();
   displayDebug();
-  delay(1000);
 }

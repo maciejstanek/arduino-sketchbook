@@ -14,7 +14,7 @@
 #define PASSWORD_MAX_SIZE 64
 #define PASSWORD_EEPROM_ADDR (SSID_EEPROM_ADDR + SSID_MAX_SIZE)
 
-// TODO: use JSON/UART to update password (via bluetooth?)
+// TODO: Consider configuring the IP via UART/JSON.
 IPAddress ip(192, 168, 0, 9);
 IPAddress gateway(192, 168, 0, 1);
 IPAddress subnet(255, 255, 255, 0);
@@ -26,7 +26,7 @@ int serialBufferIndex = 0;
 ESP8266WebServer server(80);
 
 bool lightEnabled;
-bool requestSuccessful = true;
+bool requestSuccessful;
 const byte relayPin = 2;
 
 String generateJsonResponse() {
@@ -170,7 +170,7 @@ void initLightRelay() {
   updateLightRelay();
 }
 
-void writeToEEPROM(String &string, int address, int maxLength) {
+void writeToEEPROM(String string, int address, int maxLength) {
   for(int i = 0; i < maxLength; i++) {
     if(i >= string.length()) {
       EEPROM.write(address + i, 0);
@@ -180,8 +180,8 @@ void writeToEEPROM(String &string, int address, int maxLength) {
   }
 }
 
-void readFromEEPROM(String &string, int address, int maxLength) {
-  string = "";
+String readFromEEPROM(int address, int maxLength) {
+  String string = "";
   for(int i = 0; i < maxLength; i++) {
     char c = EEPROM.read(address + i);
     if(!c) {
@@ -189,12 +189,13 @@ void readFromEEPROM(String &string, int address, int maxLength) {
     }
     string += c;
   }
+  return string;
 }
 
 void readCredentialsFromEEPROM() {
   EEPROM.begin(EEPROM_SIZE);
-  readFromEEPROM(ssid, SSID_EEPROM_ADDR, SSID_MAX_SIZE);
-  readFromEEPROM(password, PASSWORD_EEPROM_ADDR, PASSWORD_MAX_SIZE);
+  ssid = readFromEEPROM(SSID_EEPROM_ADDR, SSID_MAX_SIZE);
+  password = readFromEEPROM(PASSWORD_EEPROM_ADDR, PASSWORD_MAX_SIZE);
   EEPROM.end();
 }
 
@@ -218,8 +219,6 @@ void loadAvailableDataFromSerial() {
     }
     serialBuffer += c;
   }
-  Serial.print("DUMP: ");
-  Serial.println(serialBuffer);
 }
 
 bool parseSerialBufferAsCredentials() {
@@ -230,7 +229,13 @@ bool parseSerialBufferAsCredentials() {
   }
   // It is always safe to read even if the keys do not exist.
   ssid = jsonRoot.get<String>("ssid");
+  if(ssid.length() == 0) {
+    return false;
+  }
   password = jsonRoot.get<String>("password");
+  if(password.length() == 0) {
+    return false;
+  }
   return true;
 }
 

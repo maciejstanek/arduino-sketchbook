@@ -152,21 +152,12 @@ void handleRequestIndexPage() {
 }
 
 void updateLightRelay() {
-  // NOTE: 3V3 is too low to set relay to 'high' state.
-  //       Luckily, this relay module is 'pull-low-to-trigger'
-  //       with 5V pull-up. As a result we can force 0V
-  //       to turn the relay off and set Z (high impedance
-  //       state) to turn it on.
-  if(lightEnabled) {
-    pinMode(relayPin, OUTPUT);
-    digitalWrite(relayPin, LOW);
-  } else {
-    pinMode(relayPin, INPUT);
-  }
+  digitalWrite(relayPin, lightEnabled ? LOW : HIGH);
 }
 
 void initLightRelay() {
   lightEnabled = true;
+  pinMode(relayPin, OUTPUT);
   updateLightRelay();
 }
 

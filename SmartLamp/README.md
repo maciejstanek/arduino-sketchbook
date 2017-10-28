@@ -1,5 +1,5 @@
-![Icon](https://raw.githubusercontent.com/maciejstanek/arduino-sketchbook/master/SmartLamp/icoon.png)
-#SmartLamp
+![Icon](https://raw.githubusercontent.com/maciejstanek/arduino-sketchbook/master/SmartLamp/icon.png) SmartLamp
+---
 
 ![Breadboard version](https://raw.githubusercontent.com/maciejstanek/arduino-sketchbook/master/SmartLamp/foto_breadboard.jpg)
 
